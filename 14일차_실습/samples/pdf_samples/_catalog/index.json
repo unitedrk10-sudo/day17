@@ -1,0 +1,46 @@
+{
+  "documents": [
+    {
+      "pdf_name": "학칙.pdf",
+      "summary_file": "학칙.summary.txt",
+      "category": "규정",
+      "keywords": ["학칙", "석사", "박사", "수업연한", "재학연한", "휴학", "논문", "연세대", "대학원"]
+    },
+    {
+      "pdf_name": "보도자료.pdf",
+      "summary_file": "보도자료.summary.txt",
+      "category": "보도자료",
+      "keywords": ["SK하이닉스", "보도자료", "경영실적", "매출", "영업이익", "2026", "1분기", "HBM", "D램"]
+    },
+    {
+      "pdf_name": "A survey on large language model based autonomous agents.pdf",
+      "summary_file": "A_survey_LLM_autonomous_agents.summary.txt",
+      "category": "논문",
+      "keywords": ["LLM", "autonomous agent", "survey", "에이전트", "대규모언어모델"]
+    },
+    {
+      "pdf_name": "data2vec.pdf",
+      "summary_file": "data2vec.summary.txt",
+      "category": "논문",
+      "keywords": ["data2vec", "self-supervised", "speech", "vision", "language"]
+    },
+    {
+      "pdf_name": "Physics-Guided Deep Learning.pdf",
+      "summary_file": "Physics-Guided_Deep_Learning.summary.txt",
+      "category": "논문",
+      "keywords": ["physics-guided", "deep learning", "dynamical systems", "물리"]
+    },
+    {
+      "pdf_name": "supervised-contrastive-learning-Paper.pdf",
+      "summary_file": "supervised-contrastive-learning.summary.txt",
+      "category": "논문",
+      "keywords": ["supervised contrastive learning", "SupCon", "contrastive", "대조학습"]
+    },
+    {
+      "pdf_name": "NeurIPS-2023-analyzing-vision-transformers-for-image-classification-in-class-embedding-space-Paper-Conference.pdf",
+      "summary_file": "NeurIPS-2023-ViT-class-embedding.summary.txt",
+      "category": "논문",
+      "keywords": ["Vision Transformer", "ViT", "class embedding", "NeurIPS", "이미지분류"]
+    }
+  ]
+}

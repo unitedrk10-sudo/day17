@@ -1,0 +1,10 @@
+# Analyzing Vision Transformers for Image Classification in Class Embedding Space
+## 유형
+논문
+## 한 줄 요약
+ViT의 내부 표현을 class embedding space에 투영해 이미지 분류 메커니즘을 해석·설명하는 NeurIPS 2023 논문.
+## 핵심 키워드
+Vision Transformer, ViT, class embedding, interpretability, 이미지분류, NeurIPS, mechanistic
+## 이 문서로 답할 수 있는 질문 예시
+- Vision Transformer class embedding 논문이 다루는 내용은?
+- ViT 해석·설명(explainability)에 어떤 방법을 쓰는가?

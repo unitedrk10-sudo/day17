@@ -1,0 +1,7 @@
+﻿image_path,image_name,slot_key,value,unit,anchor_x,anchor_y,orientation,region
+C:\Users\Admin\Desktop\실습폴더\data\metrology\tem_sample_01.png,tem_sample_01.png,v_0.50_0.15,34.3,nm,0.5,0.15,vertical,top
+C:\Users\Admin\Desktop\실습폴더\data\metrology\tem_sample_01.png,tem_sample_01.png,h_0.50_0.25,25.9,nm,0.5,0.25,horizontal,top
+C:\Users\Admin\Desktop\실습폴더\data\metrology\tem_sample_01.png,tem_sample_01.png,h_0.50_0.50,25.8,nm,0.5,0.5,horizontal,middle
+C:\Users\Admin\Desktop\실습폴더\data\metrology\tem_sample_01.png,tem_sample_01.png,h_0.50_0.75,30.5,nm,0.5,0.75,horizontal,bottom
+C:\Users\Admin\Desktop\실습폴더\data\metrology\tem_sample_01.png,tem_sample_01.png,a_0.65_0.50,77.9,°,0.65,0.5,angle,middle
+C:\Users\Admin\Desktop\실습폴더\data\metrology\tem_sample_01.png,tem_sample_01.png,v_0.50_0.85,57.3,nm,0.5,0.85,vertical,bottom

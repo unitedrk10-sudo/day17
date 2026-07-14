@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>parse_request · TEM/SEM</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --card: #fff;
+      --ink: #1a1d23;
+      --muted: #5c6570;
+      --line: #d8dde6;
+      --accent: #0b6e4f;
+      --accent-soft: #e6f4ef;
+      --warn: #8a5a00;
+      --err: #b00020;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.45;
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 28px 16px 48px;
+    }
+    h1 {
+      font-size: 1.35rem;
+      margin: 0 0 4px;
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin: 0 0 20px;
+    }
+    .sub a { color: var(--accent); }
+    fieldset {
+      border: 1px solid var(--line);
+      background: var(--card);
+      border-radius: 8px;
+      padding: 14px 16px 16px;
+      margin: 0 0 14px;
+    }
+    legend {
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 0 6px;
+    }
+    label.block {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input[type="text"], textarea {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font: inherit;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    .radios, .checks {
+      display: grid;
+      gap: 8px;
+    }
+    .radios label, .checks label {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      cursor: pointer;
+      background: #fafbfc;
+    }
+    .radios label:has(input:checked),
+    .checks label:has(input:checked) {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .hint { font-size: 0.8rem; color: var(--muted); margin: 2px 0 0; }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-top: 16px;
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 16px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    button:disabled { opacity: 0.55; cursor: wait; }
+    #customBox { display: none; margin-top: 10px; }
+    #customBox.on { display: block; }
+    .result {
+      border: 1px solid var(--line);
+      background: var(--card);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-top: 18px;
+    }
+    .result h2 {
+      font-size: 1rem;
+      margin: 0 0 8px;
+    }
+    .summary {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.85rem;
+      background: #111827;
+      color: #e5e7eb;
+      padding: 10px 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .warns {
+      margin: 10px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    .warns li {
+      color: var(--warn);
+      font-size: 0.88rem;
+      margin: 4px 0;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .chip {
+      font-size: 0.78rem;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid #b7d9cc;
+    }
+    .err { color: var(--err); font-size: 0.9rem; margin-top: 10px; }
+    pre.dump {
+      margin: 10px 0 0;
+      font-size: 0.78rem;
+      background: #f0f2f5;
+      padding: 10px;
+      border-radius: 6px;
+      overflow: auto;
+      max-height: 320px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>parse_request</h1>
+    <p class="sub">
+      mag_mode · measure_goals 입력 → State 초기화 미리보기
+      · <a href="/docs" target="_blank">/docs</a>
+      · 17일차 FastAPI HTML UX 패턴
+    </p>
+
+    <fieldset>
+      <legend>1. 입력 경로</legend>
+      <label class="block" for="input_uri">input_uri (파일 / 폴더 / URL / zip)</label>
+      <input id="input_uri" type="text" placeholder="data/metrology" value="data/metrology" />
+    </fieldset>
+
+    <fieldset>
+      <legend>2. 배율 필터 정책 (mag_mode)</legend>
+      <p class="hint" style="margin-top:0">
+        이미지에 <strong>배율(x) 숫자는 보통 안 나옵니다</strong>.
+        이후 <code>read_scale_bar</code>가 스케일바(nm/px)로 상대 배율을 추정하고,
+        여기서 고른 정책으로 장을 걸러냅니다.
+      </p>
+      <div class="radios" id="magModes"></div>
+      <div id="customBox">
+        <label class="block" for="mag_custom_text">
+          (고급) 절대 배율이 정보바에 적힌 경우만 — 예: 50k, 100000
+        </label>
+        <input id="mag_custom_text" type="text" placeholder="대개 비워 둠 (스케일 추정 사용)" />
+        <p class="hint">스케일바만 있으면 custom 매칭이 안 됩니다. max_only / all 을 쓰세요.</p>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>3. 측정 목표 (measure_goals)</legend>
+      <p class="hint" style="margin-top:0">비우면 전부 측정. 체크 또는 자연어로 지정.</p>
+      <div class="checks" id="goalChecks"></div>
+      <label class="block" for="goal_text" style="margin-top:12px">자연어 목표 (goal_text)</label>
+      <textarea id="goal_text" placeholder="예: 기둥 상단 폭과 높이만. 각도 제외"></textarea>
+    </fieldset>
+
+    <div class="row">
+      <button id="run">parse_request 실행</button>
+      <button type="button" class="secondary" id="fillDemo">데모 채우기</button>
+      <button type="button" class="secondary" id="clear">초기화</button>
+    </div>
+    <p id="error" class="err"></p>
+
+    <div class="result" id="result" hidden>
+      <h2>정규화 결과</h2>
+      <div class="summary" id="summary"></div>
+      <div class="chips" id="chips"></div>
+      <ul class="warns" id="warns"></ul>
+      <pre class="dump" id="dump"></pre>
+    </div>
+  </div>
+
+  <script>
+    const magModesEl = document.getElementById('magModes');
+    const goalChecksEl = document.getElementById('goalChecks');
+    const customBox = document.getElementById('customBox');
+    const errorEl = document.getElementById('error');
+    const resultEl = document.getElementById('result');
+
+    function showError(e) {
+      errorEl.textContent = e ? String(e) : '';
+    }
+
+    function selectedMagMode() {
+      const el = document.querySelector('input[name="mag_mode"]:checked');
+      return el ? el.value : 'all';
+    }
+
+    function syncCustomBox() {
+      customBox.classList.toggle('on', selectedMagMode() === 'custom');
+    }
+
+    async function loadCatalog() {
+      const [modesRes, goalsRes] = await Promise.all([
+        fetch('/api/mag-modes'),
+        fetch('/api/goals'),
+      ]);
+      const modes = await modesRes.json();
+      const goals = await goalsRes.json();
+
+      magModesEl.innerHTML = '';
+      modes.modes.forEach((m, i) => {
+        const lab = document.createElement('label');
+        lab.innerHTML =
+          `<input type="radio" name="mag_mode" value="${m.value}" ${i === 0 ? 'checked' : ''} />` +
+          `<span><strong>${m.label}</strong><div class="hint">${m.hint}</div></span>`;
+        magModesEl.appendChild(lab);
+      });
+      magModesEl.querySelectorAll('input').forEach((el) => {
+        el.addEventListener('change', syncCustomBox);
+      });
+      syncCustomBox();
+
+      goalChecksEl.innerHTML = '';
+      goals.goals.forEach((g) => {
+        const lab = document.createElement('label');
+        lab.innerHTML =
+          `<input type="checkbox" name="goal" value="${g.goal_id}" />` +
+          `<span><strong>${g.goal_id}</strong>` +
+          `<div class="hint">${g.orientation} · edge: ${g.edge_kinds.join(', ')}</div></span>`;
+        goalChecksEl.appendChild(lab);
+      });
+    }
+
+    function selectedGoals() {
+      return [...document.querySelectorAll('input[name="goal"]:checked')].map((el) => el.value);
+    }
+
+    async function runParse() {
+      showError('');
+      const btn = document.getElementById('run');
+      btn.disabled = true;
+      try {
+        const body = {
+          input_uri: document.getElementById('input_uri').value.trim(),
+          mag_mode: selectedMagMode(),
+          mag_custom: [],
+          mag_custom_text: document.getElementById('mag_custom_text').value.trim(),
+          measure_goals: selectedGoals(),
+          goal_text: document.getElementById('goal_text').value.trim(),
+        };
+        const res = await fetch('/parse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          showError(await res.text());
+          return;
+        }
+        const data = await res.json();
+        resultEl.hidden = false;
+        document.getElementById('summary').textContent = data.summary || '';
+        const chips = document.getElementById('chips');
+        chips.innerHTML = '';
+        const goalList = (data.options && data.options.measure_goals) || [];
+        (goalList.length ? goalList : ['(all)']).forEach((g) => {
+          const span = document.createElement('span');
+          span.className = 'chip';
+          span.textContent = g;
+          chips.appendChild(span);
+        });
+        (data.edge_kinds || []).forEach((k) => {
+          const span = document.createElement('span');
+          span.className = 'chip';
+          span.textContent = 'edge:' + k;
+          chips.appendChild(span);
+        });
+        const warns = document.getElementById('warns');
+        warns.innerHTML = '';
+        (data.warnings || []).forEach((w) => {
+          const li = document.createElement('li');
+          li.textContent = '⚠ ' + w;
+          warns.appendChild(li);
+        });
+        document.getElementById('dump').textContent = JSON.stringify(data.state, null, 2);
+      } catch (e) {
+        showError('요청 실패: ' + e);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    document.getElementById('run').onclick = runParse;
+    document.getElementById('fillDemo').onclick = () => {
+      document.getElementById('input_uri').value = 'data/metrology';
+      const maxRadio = document.querySelector('input[name="mag_mode"][value="max_only"]');
+      if (maxRadio) { maxRadio.checked = true; syncCustomBox(); }
+      document.querySelectorAll('input[name="goal"]').forEach((el) => { el.checked = false; });
+      document.getElementById('goal_text').value = '기둥 상단 폭과 높이만. 각도 제외';
+      document.getElementById('mag_custom_text').value = '';
+    };
+    document.getElementById('clear').onclick = () => {
+      document.getElementById('input_uri').value = '';
+      const allRadio = document.querySelector('input[name="mag_mode"][value="all"]');
+      if (allRadio) { allRadio.checked = true; syncCustomBox(); }
+      document.querySelectorAll('input[name="goal"]').forEach((el) => { el.checked = false; });
+      document.getElementById('goal_text').value = '';
+      document.getElementById('mag_custom_text').value = '';
+      resultEl.hidden = true;
+      showError('');
+    };
+
+    loadCatalog()
+      .then(() => {
+        // 기본 mag_mode=all 이 첫 라디오
+      })
+      .catch((e) => showError('카탈로그 로드 실패: ' + e + ' — uvicorn parse_app:app 을 먼저 실행하세요.'));
+  </script>
+</body>
+</html>

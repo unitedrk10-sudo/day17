@@ -1,0 +1,10 @@
+# Physics-Guided Deep Learning for Dynamical Systems
+## 유형
+논문
+## 한 줄 요약
+동역학 시스템 모델링에서 물리 지식(physics prior)을 딥러닝에 통합하는 physics-guided DL 방법론 개요.
+## 핵심 키워드
+physics-guided, deep learning, dynamical systems, PDE, 물리, 시뮬레이션, 과학
+## 이 문서로 답할 수 있는 질문 예시
+- Physics-Guided Deep Learning이 왜 필요한가?
+- 물리 기반 모델과 DL을 어떻게 결합하는가?

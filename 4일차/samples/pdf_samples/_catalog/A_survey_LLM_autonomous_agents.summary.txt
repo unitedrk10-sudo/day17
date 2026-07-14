@@ -1,0 +1,10 @@
+# A survey on large language model based autonomous agents
+## 유형
+논문
+## 한 줄 요약
+LLM 기반 autonomous agent 연구를 체계적으로 정리한 서베이. 에이전트 구축 프레임워크, 응용(사회·자연·공학), 평가·과제를 다룸.
+## 핵심 키워드
+LLM, autonomous agent, survey, self-directed, planning, 에이전트, 대규모언어모델
+## 이 문서로 답할 수 있는 질문 예시
+- LLM autonomous agent 서베이 논문의 주제는?
+- LLM 기반 에이전트의 구성·응용 분야는?

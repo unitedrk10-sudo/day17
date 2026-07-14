@@ -1,0 +1,10 @@
+# data2vec: A General Framework for Self-supervised Learning in Speech, Vision and Language
+## 유형
+논문
+## 한 줄 요약
+음성(speech)·비전(vision)·언어(language) 세 modality에 동일한 self-supervised 학습 프레임워크를 적용하는 data2vec 제안.
+## 핵심 키워드
+data2vec, self-supervised, speech, vision, language, NLP, Transformer, 멀티모달
+## 이 문서로 답할 수 있는 질문 예시
+- data2vec가 다루는 modality 세 가지는?
+- data2vec의 핵심 학습 아이디어는?

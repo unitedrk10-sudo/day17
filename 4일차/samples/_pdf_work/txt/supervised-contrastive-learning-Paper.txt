@@ -1,0 +1,947 @@
+Supervised Contrastive Learning
+Prannay Khosla ∗
+Google Research
+Piotr Teterwak ∗†
+Boston University
+Chen Wang †
+Snap Inc.
+Aaron Sarna ‡
+Google Research
+Yonglong Tian †
+MIT
+Phillip Isola †
+MIT
+Aaron Maschinot
+Google Research
+Ce Liu
+Google Research
+Dilip Krishnan
+Google Research
+Abstract
+Contrastive learning applied to self-supervised representation learning has seen
+a resurgence in recent years, leading to state of the art performance in the unsu-
+pervised training of deep image models. Modern batch contrastive approaches
+subsume or signiﬁcantly outperform traditional contrastive losses such as triplet,
+max-margin and the N-pairs loss. In this work, we extend the self-supervised
+batch contrastive approach to the fully-supervised setting, allowing us to effec-
+tively leverage label information. Clusters of points belonging to the same class
+are pulled together in embedding space, while simultaneously pushing apart clus-
+ters of samples from different classes. We analyze two possible versions of the
+supervised contrastive (SupCon) loss, identifying the best-performing formula-
+tion of the loss. On ResNet-200, we achieve top-1 accuracy of 81.4% on the Ima-
+geNet dataset, which is 0.8% above the best number reported for this architecture.
+We show consistent outperformance over cross-entropy on other datasets and two
+ResNet variants. The loss shows beneﬁts for robustness to natural corruptions,
+and is more stable to hyperparameter settings such as optimizers and data aug-
+mentations. Our loss function is simple to implement and reference TensorFlow
+code is released at https://t.ly/supcon 1.
+1
+Introduction
+Figure 1: Our SupCon loss consistently outper-
+forms cross-entropy with standard data augmenta-
+tions. We show top-1 accuracy for the ImageNet
+dataset, on ResNet-50, ResNet-101 and ResNet-
+200, and compare against AutoAugment [5], Ran-
+dAugment [6] and CutMix [59].
+The cross-entropy loss is the most widely used loss
+function for supervised learning of deep classiﬁca-
+tion models.
+A number of works have explored
+shortcomings of this loss, such as lack of robustness
+to noisy labels [63, 46] and the possibility of poor
+margins [10, 31], leading to reduced generalization
+performance. However, in practice, most proposed
+alternatives have not worked better for large-scale
+datasets, such as ImageNet [7], as evidenced by the
+continued use of cross-entropy to achieve state of the
+art results [5, 6, 55, 25].
+In recent years, a resurgence of work in contrastive
+learning has led to major advances in self-supervised
+∗Equal contribution.
+†Work done while at Google Research.
+‡Corresponding author: sarna@google.com
+1PyTorch implementation: https://github.com/HobbitLong/SupContrast
+34th Conference on Neural Information Processing Systems (NeurIPS 2020), Vancouver, Canada.
+
+Figure 2: Supervised vs. self-supervised contrastive losses: The self-supervised contrastive loss (left, Eq. 1)
+contrasts a single positive for each anchor (i.e., an augmented version of the same image) against a set of
+negatives consisting of the entire remainder of the batch. The supervised contrastive loss (right) considered
+in this paper (Eq. 2), however, contrasts the set of all samples from the same class as positives against the
+negatives from the remainder of the batch. As demonstrated by the photo of the black and white puppy, taking
+class label information into account results in an embedding space where elements of the same class are more
+closely aligned than in the self-supervised case.
+representation learning [54, 18, 38, 48, 22, 3, 15]. The common idea in these works is the following:
+pull together an anchor and a “positive” sample in embedding space, and push apart the anchor
+from many “negative” samples. Since no labels are available, a positive pair often consists of data
+augmentations of the sample, and negative pairs are formed by the anchor and randomly chosen
+samples from the minibatch. This is depicted in Fig. 2 (left). In [38, 48], connections are made of
+the contrastive loss to maximization of mutual information between different views of the data.
+In this work, we propose a loss for supervised learning that builds on the contrastive self-supervised
+literature by leveraging label information. Normalized embeddings from the same class are pulled
+closer together than embeddings from different classes. Our technical novelty in this work is to
+consider many positives per anchor in addition to many negatives (as opposed to self-supervised
+contrastive learning which uses only a single positive). These positives are drawn from samples
+of the same class as the anchor, rather than being data augmentations of the anchor, as done in
+self-supervised learning. While this is a simple extension to the self-supervised setup, it is non-
+obvious how to setup the loss function correctly, and we analyze two alternatives. Fig. 2 (right) and
+Fig. 1 (Supplementary) provide a visual explanation of our proposed loss. Our loss can be seen as
+a generalization of both the triplet [52] and N-pair losses [45]; the former uses only one positive
+and one negative sample per anchor, and the latter uses one positive and many negatives. The use of
+many positives and many negatives for each anchor allows us to achieve state of the art performance
+without the need for hard negative mining, which can be difﬁcult to tune properly. To the best of
+our knowledge, this is the ﬁrst contrastive loss to consistently perform better than cross-entropy on
+large-scale classiﬁcation problems. Furthermore, it provides a unifying loss function that can be
+used for either self-supervised or supervised learning.
+Our resulting loss, SupCon, is simple to implement and stable to train, as our empirical results show.
+It achieves excellent top-1 accuracy on the ImageNet dataset on the ResNet-50 and ResNet-200
+architectures [17]. On ResNet-200 [5], we achieve a top-1 accuracy of 81.4%, which is a 0.8%
+improvement over the state of the art [30] cross-entropy loss on the same architecture (see Fig. 1).
+The gain in top-1 accuracy is accompanied by increased robustness as measured on the ImageNet-C
+dataset [19]. Our main contributions are summarized below:
+1. We propose a novel extension to the contrastive loss function that allows for multiple positives
+per anchor, thus adapting contrastive learning to the fully supervised setting. Analytically and
+empirically, we show that a na¨ıve extension performs much worse than our proposed version.
+2
+
+2. We show that our loss provides consistent boosts in top-1 accuracy for a number of datasets. It is
+also more robust to natural corruptions.
+3. We demonstrate analytically that the gradient of our loss function encourages learning from hard
+positives and hard negatives.
+4. We show empirically that our loss is less sensitive than cross-entropy to a range of hyperparam-
+eters.
+2
+Related Work
+Our work draws on existing literature in self-supervised representation learning, metric learning
+and supervised learning. Here we focus on the most relevant papers. The cross-entropy loss was
+introduced as a powerful loss function to train deep networks [40, 1, 29]. The key idea is simple
+and intuitive: each class is assigned a target (usually 1-hot) vector. However, it is unclear why
+these target labels should be the optimal ones and some work has tried to identify better target label
+vectors, e.g. [56]. A number of papers have studied other drawbacks of the cross-entropy loss,
+such as sensitivity to noisy labels [63, 46], presence of adversarial examples [10, 36], and poor
+margins [2]. Alternative losses have been proposed, but the most effective ideas in practice have
+been approaches that change the reference label distribution, such as label smoothing [47, 35], data
+augmentations such as Mixup [60] and CutMix [59], and knowledge distillation [21].
+Powerful self-supervised representation learning approaches based on deep learning models have
+recently been developed in the natural language domain [8, 57, 33]. In the image domain, pixel-
+predictive approaches have also been used to learn embeddings [9, 61, 62, 37]. These methods
+try to predict missing parts of the input signal. However, a more effective approach has been to
+replace a dense per-pixel predictive loss, with a loss in lower-dimensional representation space. The
+state of the art family of models for self-supervised representation learning using this paradigm are
+collected under the umbrella of contrastive learning [54, 18, 22, 48, 43, 3, 50]. In these works,
+the losses are inspired by noise contrastive estimation [13, 34] or N-pair losses [45]. Typically, the
+loss is applied at the last layer of a deep network. At test time, the embeddings from a previous
+layer are utilized for downstream transfer tasks, ﬁne tuning or direct retrieval tasks. [15] introduces
+the approximation of only back-propagating through part of the loss, and also the approximation of
+using stale representations in the form of a memory bank.
+Closely related to contrastive learning is the family of losses based on metric distance learning or
+triplets [4, 52, 42]. These losses have been used to learn powerful representations, often in super-
+vised settings, where labels are used to guide the choice of positive and negative pairs. The key
+distinction between triplet losses and contrastive losses is the number of positive and negative pairs
+per data point; triplet losses use exactly one positive and one negative pair per anchor. In the super-
+vised metric learning setting, the positive pair is chosen from the same class and the negative pair
+is chosen from other classes, nearly always requiring hard-negative mining for good performance
+[42]. Self-supervised contrastive losses similarly use just one positive pair for each anchor sample,
+selected using either co-occurrence [18, 22, 48] or data augmentation [3]. The major difference is
+that many negative pairs are used for each anchor. These are usually chosen uniformly at random
+using some form of weak knowledge, such as patches from other images, or frames from other ran-
+domly chosen videos, relying on the assumption that this approach yields a very low probability of
+false negatives.
+Resembling our supervised contrastive approach is the soft-nearest neighbors loss introduced in [41]
+and used in [53]. Like [53], we improve upon [41] by normalizing the embeddings and replacing
+euclidean distance with inner products. We further improve on [53] by the increased use of data
+augmentation, a disposable contrastive head and two-stage training (contrastive followed by cross-
+entropy), and crucially, changing the form of the loss function to signiﬁcantly improve results (see
+Section 3). [12] also uses a closely related loss formulation to ours to entangle representations at
+intermediate layers by maximizing the loss. Most similar to our method is the Compact Clustering
+via Label Propagation (CCLP) regularizer in Kamnitsas et. al. [24]. While CCLP focuses mostly
+on the semi-supervised case, in the fully supervised case the regularizer reduces to almost exactly
+our loss formulation. Important practical differences include our normalization of the contrastive
+embedding onto the unit sphere, tuning of a temperature parameter in the contrastive objective, and
+stronger augmentation. Additionally, Kamnitsas et. al. use the contrastive embedding as an input to
+a classiﬁcation head, which is trained jointly with the CCLP regularizer, while SupCon employs a
+3
+
+two stage training and discards the contrastive head. Lastly, the scale of experiments in Kamnitsas
+et. al. is much smaller than in this work. Merging the ﬁndings of our paper and CCLP is a promising
+direction for semi-supervised learning research.
+3
+Method
+Our method is structurally similar to that used in [48, 3] for self-supervised contrastive learning,
+with modiﬁcations for supervised classiﬁcation. Given an input batch of data, we ﬁrst apply data
+augmentation twice to obtain two copies of the batch. Both copies are forward propagated through
+the encoder network to obtain a 2048-dimensional normalized embedding. During training, this
+representation is further propagated through a projection network that is discarded at inference time.
+The supervised contrastive loss is computed on the outputs of the projection network. To use the
+trained model for classiﬁcation, we train a linear classiﬁer on top of the frozen representations using
+a cross-entropy loss. Fig. 1 in the Supplementary material provides a visual explanation.
+3.1
+Representation Learning Framework
+The main components of our framework are:
+• Data Augmentation module, Aug(·). For each input sample, x, we generate two random aug-
+mentations, ˜x = Aug(x), each of which represents a different view of the data and contains some
+subset of the information in the original sample. Sec. 4 gives details of the augmentations.
+• Encoder Network, Enc(·), which maps x to a representation vector, r = Enc(x) ∈RDE. Both
+augmented samples are separately input to the same encoder, resulting in a pair of representation
+vectors. r is normalized to the unit hypersphere in RDE (DE = 2048 in all our experiments in
+the paper). Consistent with the ﬁndings of [42, 51], our analysis and experiments show that this
+normalization improves top-1 accuracy.
+• Projection Network, Proj(·), which maps r to a vector z = Proj(r) ∈RDP . We instantiate
+Proj(·) as either a multi-layer perceptron [14] with a single hidden layer of size 2048 and output
+vector of size DP = 128 or just a single linear layer of size DP = 128; we leave to future work
+the investigation of optimal Proj(·) architectures. We again normalize the output of this network
+to lie on the unit hypersphere, which enables using an inner product to measure distances in the
+projection space. As in self-supervised contrastive learning [48, 3], we discard Proj(·) at the end
+of contrastive training. As a result, our inference-time models contain exactly the same number
+of parameters as a cross-entropy model using the same encoder, Enc(·).
+3.2
+Contrastive Loss Functions
+Given this framework, we now look at the family of contrastive losses, starting from the self-
+supervised domain and analyzing the options for adapting it to the supervised domain, showing that
+one formulation is superior. For a set of N randomly sampled sample/label pairs, {xk, yk}k=1...N,
+the corresponding batch used for training consists of 2N pairs, {˜xℓ, ˜yℓ}ℓ=1...2N, where ˜x2k and
+˜x2k−1 are two random augmentations (a.k.a., “views”) of xk (k = 1...N) and ˜y2k−1 = ˜y2k = yk.
+For the remainder of this paper, we will refer to a set of N samples as a “batch” and the set of 2N
+augmented samples as a “multiviewed batch”.
+3.2.1
+Self-Supervised Contrastive Loss
+Within a multiviewed batch, let i ∈I ≡{1...2N} be the index of an arbitrary augmented sample,
+and let j(i) be the index of the other augmented sample originating from the same source sample.
+In self-supervised contrastive learning (e.g., [3, 48, 18, 22]), the loss takes the following form.
+Lself =
+X
+i∈I
+Lself
+i
+= −
+X
+i∈I
+log
+exp
+ zi • zj(i)/τ
+
+P
+a∈A(i)
+exp (zi • za/τ)
+(1)
+Here, zℓ= Proj(Enc(˜xℓ)) ∈RDP , the • symbol denotes the inner (dot) product, τ ∈R+ is a
+scalar temperature parameter, and A(i) ≡I \ {i}. The index i is called the anchor, index j(i) is
+called the positive, and the other 2(N −1) indices ({k ∈A(i) \ {j(i)}) are called the negatives.
+4
+
+Note that for each anchor i, there is 1 positive pair and 2N −2 negative pairs. The denominator has
+a total of 2N −1 terms (the positive and negatives).
+3.2.2
+Supervised Contrastive Losses
+For supervised learning, the contrastive loss in Eq. 1 is incapable of handling the case where, due to
+the presence of labels, more than one sample is known to belong to the same class. Generalization
+to an arbitrary numbers of positives, though, leads to a choice between multiple possible functions.
+Eqs. 2 and 3 present the two most straightforward ways to generalize Eq. 1 to incorporate supervi-
+sion.
+Lsup
+out =
+X
+i∈I
+Lsup
+out,i =
+X
+i∈I
+−1
+|P(i)|
+X
+p∈P (i)
+log
+exp (zi • zp/τ)
+P
+a∈A(i)
+exp (zi • za/τ)
+(2)
+Lsup
+in
+=
+X
+i∈I
+Lsup
+in,i =
+X
+i∈I
+−log
+
+
+
+
+
+1
+|P(i)|
+X
+p∈P (i)
+exp (zi • zp/τ)
+P
+a∈A(i)
+exp (zi • za/τ)
+
+
+
+
+
+(3)
+Here, P(i) ≡{p ∈A(i) : ˜yp = ˜yi} is the set of indices of all positives in the multiviewed batch
+distinct from i, and |P(i)| is its cardinality. In Eq. 2, the summation over positives is located outside
+of the log (Lsup
+out) while in Eq. 3, the summation is located inside of the log (Lsup
+in ). Both losses have
+the following desirable properties:
+• Generalization to an arbitrary number of positives. The major structural change of Eqs. 2
+and 3 over Eq. 1 is that now, for any anchor, all positives in a multiviewed batch (i.e., the
+augmentation-based sample as well as any of the remaining samples with the same label) con-
+tribute to the numerator. For randomly-generated batches whose size is large with respect to the
+number of classes, multiple additional terms will be present (on average, N/C, where C is the
+number of classes). The supervised losses encourage the encoder to give closely aligned represen-
+tations to all entries from the same class, resulting in a more robust clustering of the representation
+space than that generated from Eq. 1, as is supported by our experiments in Sec. 4.
+• Contrastive power increases with more negatives. Eqs. 2 and 3 both preserve the summation
+over negatives in the contrastive denominator of Eq. 1. This form is largely motivated by noise
+contrastive estimation and N-pair losses [13, 45], wherein the ability to discriminate between
+signal and noise (negatives) is improved by adding more examples of negatives. This property is
+important for representation learning via self-supervised contrastive learning, with many papers
+showing increased performance with increasing number of negatives [18, 15, 48, 3].
+• Intrinsic ability to perform hard positive/negative mining. When used with normalized rep-
+resentations, the loss in Eq. 1 induces a gradient structure that gives rise to implicit hard posi-
+tive/negative mining. The gradient contributions from hard positives/negatives (i.e., ones against
+which continuing to contrast the anchor greatly beneﬁts the encoder) are large while those for easy
+positives/negatives (i.e., ones against which continuing to contrast the anchor only weakly beneﬁts
+the encoder) are small. Furthermore, for hard positives, the effect increases (asymptotically) as
+the number of negatives does. Eqs. 2 and 3 both preserve this useful property and generalize it
+to all positives. This implicit property allows the contrastive loss to sidestep the need for explicit
+hard mining, which is a delicate but critical part of many losses, such as triplet loss [42]. We
+note that this implicit property applies to both supervised and self-supervised contrastive losses,
+but our derivation is the ﬁrst to clearly show this property. We provide a full derivation of this
+property from the loss gradient in the Supplementary material.
+Loss
+Top-1
+Lsup
+out
+78.7%
+Lsup
+in
+67.4%
+Table 1: ImageNet Top-1 classiﬁcation
+accuracy for supervised contrastive
+losses on ResNet-50 for a batch size of
+6144.
+The two loss formulations are not, however, equivalent. Be-
+cause log is a concave function, Jensen’s Inequality [23] im-
+plies that Lsup
+out ≤Lsup
+in . One might thus be tempted to con-
+clude that Lsup
+in
+is the superior supervised loss function (since
+it bounds Lsup
+out). However, this conclusion is not supported
+analytically. Table 1 compares the ImageNet [7] top-1 classiﬁ-
+cation accuracy using Lsup
+out and Lsup
+in
+for different batch sizes
+(N) on the ResNet-50 [17] architecture. The Lsup
+out supervised
+loss achieves signiﬁcantly higher performance than Lsup
+in . We conjecture that this is due to the gra-
+dient of Lsup
+in
+having structure less optimal for training than that of Lsup
+out. For Lsup
+out, the positives
+5
+
+normalization factor (i.e., 1/|P(i)|) serves to remove bias present in the positives in a multiviewed
+batch contributing to the loss. However, though Lsup
+in
+also contains the same normalization factor,
+it is located inside of the log. It thus contributes only an additive constant to the overall loss, which
+does not affect the gradient. Without any normalization effects, the gradients of Lsup
+in
+are more
+susceptible to bias in the positives, leading to sub-optimal training.
+An analysis of the gradients themselves supports this conclusion. As shown in the Supplementary,
+the gradient for either Lsup
+out,i or Lsup
+in,i with respect to the embedding zi has the following form.
+∂Lsup
+i
+∂zi
+= 1
+τ
+
+
+
+X
+p∈P (i)
+zp(Pip −Xip) +
+X
+n∈N(i)
+znPin
+
+
+
+(4)
+Here, N(i) ≡{n ∈A(i) : ˜yn ̸= ˜yi} is the set of indices of all negatives in the multiviewed batch,
+and Pix ≡exp (zi • zx/τ) / P
+a∈A(i) exp (zi • za/τ). The difference between the gradients for the
+two losses is in Xip.
+Xip =
+
+
+
+exp(zi•zp/τ)
+P
+p′∈P (i)
+exp(zi•zp′/τ)
+,
+if Lsup
+i
+= Lsup
+in,i
+1
+|P (i)|
+,
+if Lsup
+i
+= Lsup
+out,i
+(5)
+If each zp is set to the (less biased) mean positive representation vector, z, Xin
+ip reduces to Xout
+ip :
+Xin
+ip
+
+zp=z =
+exp (zi • z/τ)
+P
+p′∈P (i)
+exp (zi • z/τ) =
+exp (zi • z/τ)
+|P(i)| · exp (zi • z/τ) =
+1
+|P(i)| = Xout
+ip
+(6)
+From the form of ∂Lsup
+i
+/∂zi, we conclude that the stabilization due to using the mean of positives
+beneﬁts training. Throughout the rest of the paper, we consider only Lsup
+out.
+3.2.3
+Connection to Triplet Loss and N-pairs Loss
+Supervised contrastive learning is closely related to the triplet loss [52], one of the widely-used loss
+functions for supervised learning. In the Supplementary, we show that the triplet loss is a special
+case of the contrastive loss when one positive and one negative are used. When more than one
+negative is used, we show that the SupCon loss becomes equivalent to the N-pairs loss [45].
+4
+Experiments
+We evaluate our SupCon loss (Lsup
+out, Eq. 2) by measuring classiﬁcation accuracy on a number
+of common image classiﬁcation benchmarks including CIFAR-10 and CIFAR-100 [27] and Ima-
+geNet [7]. We also benchmark our ImageNet models on robustness to common image corruptions
+[19] and show how performance varies with changes to hyperparameters and reduced data. For
+the encoder network (Enc(·)) we experimented with three commonly used encoder architectures:
+ResNet-50, ResNet-101, and ResNet-200 [17]. The normalized activations of the ﬁnal pooling
+layer (DE = 2048) are used as the representation vector. We experimented with four different
+implementations of the Aug(·) data augmentation module: AutoAugment [5]; RandAugment [6];
+SimAugment [3], and Stacked RandAugment [49] (see details of our SimAugment and Stacked
+RandAugment implementations in the Supplementary). AutoAugment outperforms all other data
+augmentation strategies on ResNet-50 for both SupCon and cross-entropy. Stacked RandAugment
+performed best for ResNet-200 for both loss functions. We provide more details in the Supplemen-
+tary.
+4.1
+Classiﬁcation Accuracy
+Table 2 shows that SupCon generalizes better than cross-entropy, margin classiﬁers (with use of
+labels) and unsupervised contrastive learning techniques on CIFAR-10, CIFAR-100 and ImageNet
+datasets. Table 3 shows results for ResNet-50 and ResNet-200 (we use ResNet-v1 [17]) for Ima-
+geNet. We achieve a new state of the art accuracy of 78.7% on ResNet-50 with AutoAugment (for
+comparison, a number of the other top-performing methods are shown in Fig. 1). Note that we also
+6
+
+Dataset
+SimCLR[3]
+Cross-Entropy
+Max-Margin [32]
+SupCon
+CIFAR10
+93.6
+95.0
+92.4
+96.0
+CIFAR100
+70.7
+75.3
+70.5
+76.5
+ImageNet
+70.2
+78.2
+78.0
+78.7
+Table 2: Top-1 classiﬁcation accuracy on ResNet-50 [17] for various datasets. We compare cross-entropy
+training, unsupervised representation learning (SimCLR [3]), max-margin classiﬁers [32] and SupCon (ours).
+We re-implemented and tuned hyperparameters for all baseline numbers except margin classiﬁers where we
+report published results. Note that the CIFAR-10 and CIFAR-100 results are from our PyTorch implementation
+and ImageNet from our TensorFlow implementation.
+Loss
+Architecture
+Augmentation
+Top-1
+Top-5
+Cross-Entropy (baseline)
+ResNet-50
+MixUp [60]
+77.4
+93.6
+Cross-Entropy (baseline)
+ResNet-50
+CutMix [59]
+78.6
+94.1
+Cross-Entropy (baseline)
+ResNet-50
+AutoAugment [5]
+78.2
+92.9
+Cross-Entropy (our impl.)
+ResNet-50
+AutoAugment [30]
+77.6
+95.3
+SupCon
+ResNet-50
+AutoAugment [5]
+78.7
+94.3
+Cross-Entropy (baseline)
+ResNet-200
+AutoAugment [5]
+80.6
+95.3
+Cross-Entropy (our impl.)
+ResNet-200
+Stacked RandAugment [49]
+80.9
+95.2
+SupCon
+ResNet-200
+Stacked RandAugment [49]
+81.4
+95.9
+SupCon
+ResNet-101
+Stacked RandAugment [49]
+80.2
+94.7
+Table 3: Top-1/Top-5 accuracy results on ImageNet for AutoAugment [5] with ResNet-50 and for Stacked
+RandAugment [49] with ResNet-101 and ResNet-200. The baseline numbers are taken from the referenced
+papers, and we also re-implement cross-entropy.
+achieve a slight improvement over CutMix [59], which is considered to be a state of the art data
+augmentation strategy. Incorporating data augmentation strategies such as CutMix [59] and MixUp
+[60] into contrastive learning could potentially improve results further.
+We also experimented with memory based alternatives [15]. On ImageNet, with a memory size
+of 8192 (requiring only the storage of 128-dimensional vectors), a batch size of 256, and SGD
+optimizer, running on 8 Nvidia V100 GPUs, SupCon is able to achieve 79.1% top-1 accuracy on
+ResNet-50. This is in fact slightly better than the 78.7% accuracy with 6144 batch size (and no
+memory); and with signiﬁcantly reduced compute and memory footprint.
+Since SupCon uses 2 views per sample, its batch sizes are effectively twice the cross-entropy equiv-
+alent. We therefore also experimented with the cross-entropy ResNet-50 baselines using a batch size
+of 12,288. These only achieved 77.5% top-1 accuracy. We additionally experimented with increas-
+ing the number of training epochs for cross-entropy all the way to 1400, but this actually decreased
+accuracy (77.0%).
+We tested the N-pairs loss [45] in our framework with a batch size of 6144. N-pairs achieves only
+57.4% top-1 accuracy on ImageNet. We believe this is due to multiple factors missing from N-pairs
+loss compared to supervised contrastive: the use of multiple views; lower temperature; and many
+more positives. We show some results of the impact of the number of positives per anchor in the
+Supplementary (Sec. 6), and the N-pairs result is inline with them. We also note that the original
+N-pairs paper [45] has already shown the outperformance of N-pairs loss to triplet loss.
+4.2
+Robustness to Image Corruptions and Reduced Training Data
+Deep neural networks lack robustness to out of distribution data or natural corruptions such as noise,
+blur and JPEG compression. The benchmark ImageNet-C dataset [19] is used to measure trained
+model performance on such corruptions. In Fig. 3(left), we compare the supervised contrastive
+models to cross-entropy using the Mean Corruption Error (mCE) and Relative Mean Corruption Er-
+ror metrics [19]. Both metrics measure average degradation in performance compared to ImageNet
+test set, averaged over all possible corruptions and severity levels. Relative mCE is a better metric
+when we compare models with different Top-1 accuracy, while mCE is a better measure of absolute
+robustness to corruptions. The SupCon models have lower mCE values across different corruptions,
+showing increased robustness. We also see from Fig. 3(right) that SupCon models demonstrate
+lesser degradation in accuracy with increasing corruption severity.
+7
+
+Loss
+Architecture
+rel. mCE mCE
+Cross-Entropy
+AlexNet [28]
+100.0
+100.0
+(baselines)
+VGG-19+BN [44]
+122.9
+81.6
+ResNet-18 [17]
+103.9
+84.7
+Cross-Entropy
+ResNet-50
+96.2
+68.6
+(our implementation)
+ResNet-200
+69.1
+52.4
+Supervised Contrastive
+ResNet-50
+94.6
+67.2
+ResNet-200
+66.5
+50.6
+Figure 3: Training with supervised contrastive loss makes models more robust to corruptions in images. Left:
+Robustness as measured by Mean Corruption Error (mCE) and relative mCE over the ImageNet-C dataset
+[19] (lower is better). Right: Mean Accuracy as a function of corruption severity averaged over all various
+corruptions. (higher is better).
+Figure 4: Accuracy of cross-entropy and supervised contrastive loss as a function of hyperparameters and
+training data size, all measured on ImageNet with a ResNet-50 encoder. (From left to right) (a): Standard
+boxplot showing Top-1 accuracy vs changes in augmentation, optimizer and learning rates. (b): Top-1 accuracy
+as a function of batch size shows both losses beneﬁt from larger batch sizes while Supervised Contrastive has
+higher Top-1 accuracy even when trained with smaller batch sizes. (c): Top-1 accuracy as a function of SupCon
+pretraining epochs. (d): Top-1 accuracy as a function of temperature during pretraining stage for SupCon.
+Food CIFAR10 CIFAR100 Birdsnap SUN397 Cars Aircraft VOC2007 DTD
+Pets
+Caltech-101 Flowers Mean
+SimCLR-50 [3] 88.20
+97.70
+85.90
+75.90
+63.50
+91.30
+88.10
+84.10
+73.20 89.20
+92.10
+97.00
+84.81
+Xent-50
+87.38
+96.50
+84.93
+74.70
+63.15
+89.57
+80.80
+85.36
+76.86 92.35
+92.34
+96.93
+84.67
+SupCon-50
+87.23
+97.42
+84.27
+75.15
+58.04
+91.69
+84.09
+85.17
+74.60 93.47
+91.04
+96.0
+84.27
+Xent-200
+89.36
+97.96
+86.49
+76.50
+64.36
+90.01
+84.22
+86.27
+76.76 93.48
+93.84
+97.20
+85.77
+SupCon-200
+88.62
+98.28
+87.28
+76.26
+60.46
+91.78
+88.68
+85.18
+74.26 93.12
+94.91
+96.97
+85.67
+Table 4: Transfer learning results. Numbers are mAP for VOC2007 [11]; mean-per-class accuracy for Aircraft,
+Pets, Caltech, and Flowers; and top-1 accuracy for all other datasets.
+4.3
+Hyperparameter Stability
+We experimented with hyperparameter stability by changing augmentations, optimizers and learning
+rates one at a time from the best combination for each of the methodologies. In Fig. 4(a), we
+compare the top-1 accuracy of SupCon loss against cross-entropy across changes in augmentations
+(RandAugment [6], AutoAugment [5], SimAugment [3], Stacked RandAugment [49]); optimizers
+(LARS, SGD with Momentum and RMSProp); and learning rates. We observe signiﬁcantly lower
+variance in the output of the contrastive loss. Note that batch sizes for cross-entropy and supervised
+contrastive are the same, thus ruling out any batch-size effects. In Fig. 4(b), sweeping batch size
+and holding all other hyperparameters constant results in consistently better top-1 accuracy of the
+supervised contrastive loss.
+4.4
+Transfer Learning
+We evaluate the learned representation for ﬁne-tuning on 12 natural image datasets, following the
+protocol in Chen et.al. [3]. SupCon is on par with cross-entropy and self-supervised contrastive loss
+on transfer learning performance when trained on the same architecture (Table 4). Our results are
+consistent with the ﬁndings in [16] and [26]: while better ImageNet models are correlated with better
+transfer performance, the dominant factor is architecture. Understanding the connection between
+training objective and transfer performance is left to future work.
+8
+
+4.5
+Training Details
+The SupCon loss was trained for 700 epochs during pretraining for ResNet-200 and 350 epochs for
+smaller models. Fig. 4(c) shows accuracy as a function of SupCon training epochs for a ResNet50,
+demonstrating that even 200 epochs is likely sufﬁcient for most purposes.
+An (optional) additional step of training a linear classiﬁer is used to compute top-1 accuracy. This is
+not needed if the purpose is to use representations for transfer learning tasks or retrieval. The second
+stage needs as few as 10 epochs of additional training. Note that in practice the linear classiﬁer
+can be trained jointly with the encoder and projection networks by blocking gradient propagation
+from the linear classiﬁer back to the encoder, and achieve roughly the same results without requiring
+two-stage training. We chose not to do that here to help isolate the effects of the SupCon loss.
+We trained our models with batch sizes of up to 6144, although batch sizes of 2048 sufﬁce for most
+purposes for both SupCon and cross-entropy losses (as shown in Fig. 4(b)). We associate some of
+the performance increase with batch size to the effect on the gradient due to hard positives increasing
+with an increasing number of negatives (see the Supplementary for details). We report metrics for
+experiments with batch size 6144 for ResNet-50 and batch size 4096 for ResNet-200 (due to the
+larger network size, a smaller batch size is necessary). We observed that for a ﬁxed batch size it was
+possible to train with SupCon using larger learning rates than what was required by cross-entropy to
+achieve similar performance.
+All our results used a temperature of τ = 0.1. Smaller temperature beneﬁts training more than
+higher ones, but extremely low temperatures are harder to train due to numerical instability. Fig.
+4(d) shows the effect of temperature on Top-1 performance of supervised contrastive learning. As
+we can see from Eq. 4, the gradient scales inversely with choice of temperature τ; therefore we
+rescale the loss by τ during training for stability.
+We experimented with standard optimizers such as LARS [58], RMSProp [20] and SGD with mo-
+mentum [39] in different permutations for the initial pre-training step and training of the dense layer.
+While SGD with momentum works best for training ResNets with cross-entropy, we get the best per-
+formance for SupCon on ImageNet by using LARS for pre-training and RMSProp to training the
+linear layer. For CIFAR10 and CIFAR100 SGD with momentum performed best. Additional results
+for combinations of optimizers are provided in the Supplementary. Reference code is released at
+https://t.ly/supcon.
+Broader Impact
+This work provides a technical advancement in the ﬁeld of supervised classiﬁcation, which already
+has tremendous impact throughout industry. Whether or not they realize it, most people experience
+the results of this type of classiﬁer many times a day.
+As we have shown, supervised contrastive learning can improve both the accuracy and robustness
+of classiﬁers, which for most applications should strictly be an improvement. For example, an au-
+tonomous car that makes a classiﬁcation error due to data distribution shift can result in catastrophic
+results. Thus decreasing this class of error undoubtedly promotes safety. Human driver error is a
+massive source of fatalities around the world, so improving the safety of autonomous cars furthers
+the efforts of replacing human drivers. The ﬂip side of that progress is of course the potential for loss
+of employment in ﬁelds like trucking and taxi driving. Similar two-sided coins can be considered
+for assessing the impact of any application of classiﬁcation.
+An additional potential impact of our work in particular is showing the value of training with large
+batch sizes. Generally, large batch size training comes at the cost of substantial energy consumption,
+which unfortunately today requires the burning of fossil fuels, which in turn warms our planet. We
+are proud to say that the model training that was done in the course of this research was entirely
+carbon-neutral, where all power consumed was either green to start with, or offset by purchases of
+green energy. There is unfortunately no way to guarantee that once this research is publicly available
+that all practitioners of it will choose, or even have the ability to choose, to limit the environmental
+impact of their model training.
+9
+
+Acknowledgments and Disclosure of Funding
+Additional revenues related to this work:
+In the past 36 months, Phillip Isola has had em-
+ployment at MIT, Google, and OpenAI; honorarium for lecturing at the ACDL summer school
+in Italy; honorarium for speaking at GIST AI Day in South Korea.
+P.I.’s lab at MIT has
+been supported by grants from Facebook, IBM, and the US Air Force; start up funding
+from iFlyTech via MIT; gifts from Adobe and Google; compute credit donations from Google
+Cloud.
+References
+[1] Eric B Baum and Frank Wilczek. Supervised learning of probability distributions by neural
+networks. In Neural information processing systems, pages 52–61, 1988. 3
+[2] Kaidi Cao, Colin Wei, Adrien Gaidon, Nikos Arechiga, and Tengyu Ma. Learning imbal-
+anced datasets with label-distribution-aware margin loss. In Advances in Neural Information
+Processing Systems, pages 1565–1576, 2019. 3
+[3] Ting Chen, Simon Kornblith, Mohammad Norouzi, and Geoffrey Hinton. A simple framework
+for contrastive learning of visual representations. arXiv preprint arXiv:2002.05709, 2020. 2,
+3, 4, 5, 6, 7, 8
+[4] Sumit Chopra, Raia Hadsell, and Yann LeCun. Learning a similarity metric discriminatively,
+with application to face veriﬁcation. In 2005 IEEE Computer Society Conference on Computer
+Vision and Pattern Recognition (CVPR’05), volume 1, pages 539–546. IEEE, 2005. 3
+[5] Ekin D Cubuk, Barret Zoph, Dandelion Mane, Vijay Vasudevan, and Quoc V Le. Autoaug-
+ment: Learning augmentation strategies from data. In Proceedings of the IEEE conference on
+computer vision and pattern recognition, pages 113–123, 2019. 1, 2, 6, 7, 8
+[6] Ekin D Cubuk, Barret Zoph, Jonathon Shlens, and Quoc V Le. Randaugment: Practical data
+augmentation with no separate search. arXiv preprint arXiv:1909.13719, 2019. 1, 6, 8
+[7] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei. Imagenet: A large-
+scale hierarchical image database. In 2009 IEEE conference on computer vision and pattern
+recognition, 2009. 1, 5, 6
+[8] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. Bert: Pre-training of
+deep bidirectional transformers for language understanding. arXiv preprint arXiv:1810.04805,
+2018. 3
+[9] Carl Doersch, Abhinav Gupta, and Alexei A Efros. Unsupervised visual representation learn-
+ing by context prediction. In Proceedings of the IEEE International Conference on Computer
+Vision, pages 1422–1430, 2015. 3
+[10] Gamaleldin Elsayed, Dilip Krishnan, Hossein Mobahi, Kevin Regan, and Samy Bengio. Large
+margin deep networks for classiﬁcation. In Advances in neural information processing systems,
+pages 842–852, 2018. 1, 3
+[11] M. Everingham, L. Van Gool, C. K. I. Williams, J. Winn, and A. Zisserman.
+The
+PASCAL Visual Object Classes Challenge 2007 (VOC2007) Results.
+http://www.pascal-
+network.org/challenges/VOC/voc2007/workshop/index.html. 8
+[12] Nicholas Frosst, Nicolas Papernot, and Geoffrey E. Hinton. Analyzing and improving repre-
+sentations with the soft nearest neighbor loss. In Kamalika Chaudhuri and Ruslan Salakhut-
+dinov, editors, Proceedings of the 36th International Conference on Machine Learning, ICML
+2019, 9-15 June 2019, Long Beach, California, USA, volume 97 of Proceedings of Machine
+Learning Research, pages 2012–2020. PMLR, 2019. 3
+[13] Michael Gutmann and Aapo Hyv¨arinen. Noise-contrastive estimation: A new estimation prin-
+ciple for unnormalized statistical models. In Proceedings of the Thirteenth International Con-
+ference on Artiﬁcial Intelligence and Statistics, pages 297–304, 2010. 3, 5
+[14] Trevor Hastie, Robert Tibshirani, and Jerome Friedman. The Elements of Statistical Learning.
+Springer Series in Statistics. Springer New York Inc., New York, NY, USA, 2001. 4
+[15] Kaiming He, Haoqi Fan, Yuxin Wu, Saining Xie, and Ross Girshick. Momentum contrast for
+unsupervised visual representation learning. arXiv preprint arXiv:1911.05722, 2019. 2, 3, 5, 7
+[16] Kaiming He, Ross Girshick, and Piotr Doll´ar. Rethinking imagenet pre-training. In Proceed-
+ings of the IEEE International Conference on Computer Vision, pages 4918–4927, 2019. 8
+10
+
+[17] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image
+recognition. In Proceedings of the IEEE conference on computer vision and pattern recogni-
+tion, pages 770–778, 2016. 2, 5, 6, 7, 8
+[18] Olivier J H´enaff, Ali Razavi, Carl Doersch, SM Eslami, and Aaron van den Oord.
+Data-efﬁcient image recognition with contrastive predictive coding.
+arXiv preprint
+arXiv:1905.09272, 2019. 2, 3, 4, 5
+[19] Dan Hendrycks and Thomas Dietterich. Benchmarking neural network robustness to common
+corruptions and perturbations. arXiv preprint arXiv:1903.12261, 2019. 2, 6, 7, 8
+[20] Geoffrey Hinton, Nitish Srivastava, and Kevin Swersky. Neural networks for machine learning
+lecture 6a overview of mini-batch gradient descent. Cited on, 14(8), 2012. 9
+[21] Geoffrey Hinton, Oriol Vinyals, and Jeff Dean. Distilling the knowledge in a neural network.
+arXiv preprint arXiv:1503.02531, 2015. 3
+[22] R Devon Hjelm, Alex Fedorov, Samuel Lavoie-Marchildon, Karan Grewal, Adam Trischler,
+and Yoshua Bengio.
+Learning deep representations by mutual information estimation and
+maximization. In International Conference on Learning Representations, 2019. 2, 3, 4
+[23] J. L. W. V. Jensen. Sur les fonctions convexes et les inegalites entre les valeurs moyennes. Acta
+Math, 1906. 5
+[24] Konstantinos Kamnitsas, Daniel C. Castro, Lo¨ıc Le Folgoc, Ian Walker, Ryutaro Tanno, Daniel
+Rueckert, Ben Glocker, Antonio Criminisi, and Aditya V. Nori. Semi-supervised learning via
+compact latent space clustering. In International Conference on Machine Learning, 2018. 3
+[25] Alexander Kolesnikov, Lucas Beyer, Xiaohua Zhai, Joan Puigcerver, Jessica Yung, Sylvain
+Gelly, and Neil Houlsby. Large scale learning of general visual representations for transfer.
+arXiv preprint arXiv:1912.11370, 2019. 1
+[26] Simon Kornblith, Jonathon Shlens, and Quoc V Le. Do better imagenet models transfer better?
+In Proceedings of the IEEE conference on computer vision and pattern recognition, pages
+2661–2671, 2019. 8
+[27] Alex Krizhevsky, Geoffrey Hinton, et al. Learning multiple layers of features from tiny images.
+2009. 6
+[28] Alex Krizhevsky, Ilya Sutskever, and Geoffrey E Hinton. Imagenet classiﬁcation with deep
+convolutional neural networks. In Advances in neural information processing systems, pages
+1097–1105, 2012. 8
+[29] Esther Levin and Michael Fleisher. Accelerated learning in layered neural networks. Complex
+systems, 2:625–640, 1988. 3
+[30] Sungbin Lim, Ildoo Kim, Taesup Kim, Chiheon Kim, and Sungwoong Kim. Fast autoaugment.
+arXiv preprint arXiv:1905.00397, 2019. 2, 7
+[31] Weiyang Liu, Yandong Wen, Zhiding Yu, and Meng Yang. Large-margin softmax loss for
+convolutional neural networks. In ICML, volume 2, page 7, 2016. 1
+[32] Weiyang Liu, Yandong Wen, Zhiding Yu, and Meng Yang. Large-margin softmax loss for
+convolutional neural networks, 2016. 7
+[33] Tomas Mikolov, Ilya Sutskever, Kai Chen, Greg S Corrado, and Jeff Dean. Distributed repre-
+sentations of words and phrases and their compositionality. In Advances in neural information
+processing systems, pages 3111–3119, 2013. 3
+[34] Andriy Mnih and Koray Kavukcuoglu.
+Learning word embeddings efﬁciently with noise-
+contrastive estimation. In Advances in neural information processing systems, pages 2265–
+2273, 2013. 3
+[35] Rafael M¨uller, Simon Kornblith, and Geoffrey E Hinton. When does label smoothing help? In
+Advances in Neural Information Processing Systems, pages 4696–4705, 2019. 3
+[36] Kamil Nar, Orhan Ocal, S Shankar Sastry, and Kannan Ramchandran.
+Cross-entropy
+loss and low-rank features have responsibility for adversarial examples.
+arXiv preprint
+arXiv:1901.08360, 2019. 3
+[37] Mehdi Noroozi and Paolo Favaro. Unsupervised learning of visual representations by solving
+jigsaw puzzles. In European Conference on Computer Vision, pages 69–84. Springer, 2016. 3
+[38] Aaron van den Oord, Yazhe Li, and Oriol Vinyals. Representation learning with contrastive
+predictive coding. arXiv preprint arXiv:1807.03748, 2018. 2
+[39] Sebastian Ruder. An overview of gradient descent optimization algorithms. arXiv preprint
+arXiv:1609.04747, 2016. 9
+[40] David E Rumelhart, Geoffrey E Hinton, and Ronald J Williams. Learning representations by
+back-propagating errors. nature, 323(6088):533–536, 1986. 3
+11
+
+[41] Ruslan Salakhutdinov and Geoff Hinton. Learning a nonlinear embedding by preserving class
+neighbourhood structure. In Artiﬁcial Intelligence and Statistics, pages 412–419, 2007. 3
+[42] Florian Schroff, Dmitry Kalenichenko, and James Philbin. Facenet: A uniﬁed embedding for
+face recognition and clustering. In Proceedings of the IEEE conference on computer vision
+and pattern recognition, pages 815–823, 2015. 3, 4, 5
+[43] Pierre Sermanet, Corey Lynch, Yevgen Chebotar, Jasmine Hsu, Eric Jang, Stefan Schaal,
+Sergey Levine, and Google Brain. Time-contrastive networks: Self-supervised learning from
+video. In 2018 IEEE International Conference on Robotics and Automation (ICRA), 2018. 3
+[44] Karen Simonyan and Andrew Zisserman. Very deep convolutional networks for large-scale
+image recognition. In International Conference on Learning Representations, 2015. 8
+[45] Kihyuk Sohn. Improved deep metric learning with multi-class n-pair loss objective. In Ad-
+vances in neural information processing systems, pages 1857–1865, 2016. 2, 3, 5, 6, 7
+[46] Sainbayar Sukhbaatar, Joan Bruna, Manohar Paluri, Lubomir Bourdev, and Rob Fergus. Train-
+ing convolutional networks with noisy labels. arXiv preprint arXiv:1406.2080, 2014. 1, 3
+[47] Christian Szegedy, Vincent Vanhoucke, Sergey Ioffe, Jon Shlens, and Zbigniew Wojna. Re-
+thinking the inception architecture for computer vision. In Proceedings of the IEEE conference
+on computer vision and pattern recognition, pages 2818–2826, 2016. 3
+[48] Yonglong Tian, Dilip Krishnan, and Phillip Isola. Contrastive multiview coding. arXiv preprint
+arXiv:1906.05849, 2019. 2, 3, 4, 5
+[49] Yonglong Tian, Chen Sun, Ben Poole, Dilip Krishnan, Cordelia Schmid, and Phillip Isola.
+What makes for good views for contrastive learning. arXiv preprint arXiv:2005.10243, 2019.
+6, 7, 8
+[50] Michael Tschannen, Josip Djolonga, Paul K Rubenstein, Sylvain Gelly, and Mario Lu-
+cic.
+On mutual information maximization for representation learning.
+arXiv preprint
+arXiv:1907.13625, 2019. 3
+[51] Tongzhou Wang and Phillip Isola. Understanding contrastive representation learning through
+alignment and uniformity on the hypersphere. arXiv preprint arXiv:2005.10242, 2020. 4
+[52] Kilian Q Weinberger and Lawrence K Saul. Distance metric learning for large margin nearest
+neighbor classiﬁcation. Journal of Machine Learning Research, 10(Feb):207–244, 2009. 2, 3,
+6
+[53] Zhirong Wu, Alexei A Efros, and Stella Yu. Improving generalization via scalable neighbor-
+hood component analysis. In European Conference on Computer Vision (ECCV) 2018, 2018.
+3
+[54] Zhirong Wu, Yuanjun Xiong, Stella X Yu, and Dahua Lin. Unsupervised feature learning via
+non-parametric instance discrimination. In Proceedings of the IEEE Conference on Computer
+Vision and Pattern Recognition, pages 3733–3742, 2018. 2, 3
+[55] Qizhe Xie, Eduard Hovy, Minh-Thang Luong, and Quoc V Le. Self-training with noisy student
+improves imagenet classiﬁcation. arXiv preprint arXiv:1911.04252, 2019. 1
+[56] Shuo Yang, Ping Luo, Chen Change Loy, Kenneth W Shum, and Xiaoou Tang. Deep represen-
+tation learning with target coding. In Twenty-Ninth AAAI Conference on Artiﬁcial Intelligence,
+2015. 3
+[57] Zhilin Yang, Zihang Dai, Yiming Yang, Jaime Carbonell, Russ R Salakhutdinov, and Quoc V
+Le. Xlnet: Generalized autoregressive pretraining for language understanding. In Advances in
+neural information processing systems, pages 5754–5764, 2019. 3
+[58] Yang You, Igor Gitman, and Boris Ginsburg. Large batch training of convolutional networks.
+arXiv preprint arXiv:1708.03888, 2017. 9
+[59] Sangdoo Yun, Dongyoon Han, Seong Joon Oh, Sanghyuk Chun, Junsuk Choe, and Youngjoon
+Yoo. Cutmix: Regularization strategy to train strong classiﬁers with localizable features. In
+Proceedings of the IEEE International Conference on Computer Vision, pages 6023–6032,
+2019. 1, 3, 7
+[60] Hongyi Zhang, Moustapha Cisse, Yann N Dauphin, and David Lopez-Paz. mixup: Beyond
+empirical risk minimization. arXiv preprint arXiv:1710.09412, 2017. 3, 7
+[61] Richard Zhang, Phillip Isola, and Alexei A Efros. Colorful image colorization. In European
+conference on computer vision, pages 649–666. Springer, 2016. 3
+[62] Richard Zhang, Phillip Isola, and Alexei A Efros. Split-brain autoencoders: Unsupervised
+learning by cross-channel prediction. In Proceedings of the IEEE Conference on Computer
+Vision and Pattern Recognition, pages 1058–1067, 2017. 3
+12
+
+[63] Zhilu Zhang and Mert Sabuncu. Generalized cross entropy loss for training deep neural net-
+works with noisy labels. In Advances in neural information processing systems, pages 8778–
+8788, 2018. 1, 3
+13

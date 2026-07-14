@@ -1,0 +1,104 @@
+{
+  "min_overlap": 15,
+  "clusters": [
+    {
+      "folder": "분야",
+      "pdfs": [
+        "Language_Models.pdf",
+        "data2vec.pdf",
+        "NeurIPS-2023-analyzing-vision-transformers-for-image-classification-in-class-embedding-space-Paper-Conference.pdf",
+        "supervised-contrastive-learning-Paper.pdf"
+      ]
+    },
+    {
+      "folder": "A_survey_on_large_language_model_based_autonomou",
+      "pdfs": [
+        "A survey on large language model based autonomous agents.pdf"
+      ]
+    },
+    {
+      "folder": "Physics-Guided_Deep_Learning",
+      "pdfs": [
+        "Physics-Guided Deep Learning.pdf"
+      ]
+    },
+    {
+      "folder": "보도자료",
+      "pdfs": [
+        "보도자료.pdf"
+      ]
+    },
+    {
+      "folder": "절차도",
+      "pdfs": [
+        "학칙.pdf",
+        "학칙.pdf"
+      ]
+    }
+  ],
+  "moved": [
+    {
+      "pdf": "Language_Models.pdf",
+      "src": "Language_Models.pdf",
+      "folder": "분야",
+      "dest": "_organized\\분야\\Language_Models.pdf",
+      "cluster_size": 4
+    },
+    {
+      "pdf": "data2vec.pdf",
+      "src": "pdf_samples\\data2vec.pdf",
+      "folder": "분야",
+      "dest": "_organized\\분야\\data2vec.pdf",
+      "cluster_size": 4
+    },
+    {
+      "pdf": "NeurIPS-2023-analyzing-vision-transformers-for-image-classification-in-class-embedding-space-Paper-Conference.pdf",
+      "src": "pdf_samples\\NeurIPS-2023-analyzing-vision-transformers-for-image-classification-in-class-embedding-space-Paper-Conference.pdf",
+      "folder": "분야",
+      "dest": "_organized\\분야\\NeurIPS-2023-analyzing-vision-transformers-for-image-classification-in-class-embedding-space-Paper-Conference.pdf",
+      "cluster_size": 4
+    },
+    {
+      "pdf": "supervised-contrastive-learning-Paper.pdf",
+      "src": "pdf_samples\\supervised-contrastive-learning-Paper.pdf",
+      "folder": "분야",
+      "dest": "_organized\\분야\\supervised-contrastive-learning-Paper.pdf",
+      "cluster_size": 4
+    },
+    {
+      "pdf": "A survey on large language model based autonomous agents.pdf",
+      "src": "pdf_samples\\A survey on large language model based autonomous agents.pdf",
+      "folder": "A_survey_on_large_language_model_based_autonomou",
+      "dest": "_organized\\A_survey_on_large_language_model_based_autonomou\\A survey on large language model based autonomous agents.pdf",
+      "cluster_size": 1
+    },
+    {
+      "pdf": "Physics-Guided Deep Learning.pdf",
+      "src": "pdf_samples\\Physics-Guided Deep Learning.pdf",
+      "folder": "Physics-Guided_Deep_Learning",
+      "dest": "_organized\\Physics-Guided_Deep_Learning\\Physics-Guided Deep Learning.pdf",
+      "cluster_size": 1
+    },
+    {
+      "pdf": "보도자료.pdf",
+      "src": "pdf_samples\\보도자료.pdf",
+      "folder": "보도자료",
+      "dest": "_organized\\보도자료\\보도자료.pdf",
+      "cluster_size": 1
+    },
+    {
+      "pdf": "학칙.pdf",
+      "src": "pdf_samples\\학칙.pdf",
+      "folder": "절차도",
+      "dest": "_organized\\절차도\\학칙.pdf",
+      "cluster_size": 2
+    },
+    {
+      "pdf": "학칙.pdf",
+      "src": "학칙.pdf",
+      "folder": "절차도",
+      "dest": "_organized\\절차도\\학칙_1.pdf",
+      "cluster_size": 2
+    }
+  ]
+}

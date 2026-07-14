@@ -1,0 +1,27 @@
+# API keys & secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Vector DB (재생성 가능)
+chroma_store/
+**/chroma_regulations/
+*.sqlite3
+
+# DB / 대용량 학습·RAG 데이터
+*.db
+16일차_실습/Data/
+16일차_실습/rag_data/
+
+# 압축 파일
+*.zip
+
+# 업로드/다운로드 임시 이미지
+data/metrology/uploads/
+data/metrology/output/

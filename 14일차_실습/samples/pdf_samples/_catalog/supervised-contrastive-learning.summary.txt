@@ -1,0 +1,10 @@
+# Supervised Contrastive Learning
+## 유형
+논문
+## 한 줄 요약
+self-supervised contrastive learning을 지도학습으로 확장한 SupCon loss. 같은 클래스는 가깝게, 다른 클래스는 멀게 임베딩.
+## 핵심 키워드
+supervised contrastive learning, SupCon, contrastive, ImageNet, representation, 대조학습
+## 이 문서로 답할 수 있는 질문 예시
+- Supervised Contrastive Learning 핵심 아이디어는?
+- cross-entropy 대비 장점은?

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Notes API</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
+    h1 { font-size: 1.4rem; }
+    .row { display: flex; gap: 8px; margin: 16px 0; }
+    input { flex: 1; padding: 8px; }
+    button { padding: 8px 12px; cursor: pointer; }
+    li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #ddd; }
+    .meta { color: #666; font-size: 0.9rem; }
+    .err { color: #b00020; }
+  </style>
+</head>
+<body>
+  <h1>Notes</h1>
+  <p class="meta">FastAPI <code>/notes</code> 를 브라우저에서 호출합니다.</p>
+
+  <div class="row">
+    <input id="text" type="text" placeholder="메모 내용" />
+    <button id="add">추가</button>
+  </div>
+  <p class="meta">총 <span id="count">0</span>개</p>
+  <ul id="list"></ul>
+  <p id="error" class="err"></p>
+
+  <script>
+    const listEl = document.getElementById('list');
+    const countEl = document.getElementById('count');
+    const errorEl = document.getElementById('error');
+    const textEl = document.getElementById('text');
+
+    function showError(e) {
+      errorEl.textContent = e ? String(e) : '';
+    }
+
+    async function refresh() {
+      showError('');
+      const res = await fetch('/notes');
+      const data = await res.json();
+      countEl.textContent = data.count;
+      listEl.innerHTML = '';
+      data.notes.forEach((note, index) => {
+        const li = document.createElement('li');
+        const span = document.createElement('span');
+        span.textContent = `[${index}] ${note}`;
+        const btn = document.createElement('button');
+        btn.textContent = '삭제';
+        btn.onclick = () => remove(index);
+        li.append(span, btn);
+        listEl.appendChild(li);
+      });
+    }
+
+    async function add() {
+      const text = textEl.value.trim();
+      if (!text) return;
+      showError('');
+      const res = await fetch('/notes?' + new URLSearchParams({ text }), { method: 'POST' });
+      if (!res.ok) {
+        showError(await res.text());
+        return;
+      }
+      textEl.value = '';
+      await refresh();
+    }
+
+    async function remove(index) {
+      showError('');
+      const res = await fetch('/notes/' + index, { method: 'DELETE' });
+      if (!res.ok) {
+        showError(await res.text());
+        return;
+      }
+      await refresh();
+    }
+
+    document.getElementById('add').onclick = add;
+    textEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') add();
+    });
+    refresh().catch((e) => showError('서버 연결 실패: ' + e));
+  </script>
+</body>
+</html>
