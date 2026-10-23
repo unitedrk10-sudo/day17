@@ -55,6 +55,15 @@ Windows에서는 설치 때 `%USERPROFILE%\.claude\ccsw\ccsw.cmd`도 만들어�
   - **Windows Terminal**(Microsoft Store/기본 설치)을 쓰면 `Ctrl+V`가 그대로 붙여넣기다 — 가장 확실.
   - 회사 보안 프로그램이 콘솔 붙여넣기를 막는 경우: 명령을 `.ps1` 파일로 저장해 실행하거나 `--clipboard` 사용.
 
+## 메모장으로 직접 넣기 (붙여넣기가 막힌 콘솔)
+키 저장소는 그냥 텍스트 파일이다 — 명령 없이 메모장으로 만들어도 된다 (`install`은 한 번 해 둘 것).
+1. 탐색기 주소창에 `%USERPROFILE%\.claude\ccsw\keys` (없으면 폴더 생성)
+2. 메모장에 키 **한 줄만** 붙여넣기 → 다른 이름으로 저장 → 파일 이름 `work.key` (파일 형식 '모든 파일').
+   `.key.txt`로 저장돼도, UTF-8·BOM·유니코드(UTF-16) 어느 것으로 저장돼도 읽는다.
+3. 활성 키: `%USERPROFILE%\.claude\ccsw\active` 파일에 이름 한 줄 (예: `work`) — 또는 `ccsw use work` (타이핑)
+4. 전환 = `active` 파일 내용만 바꿔 저장. 실행 중인 세션은 TTL 안에 새 키 사용 (`use`는 반영을 조금 앞당길 뿐)
+5. 확인: `ccsw list`(끝 4자리) · `ccsw doctor`(형식이 잘못된 키 파일은 FAIL로 알려줌)
+
 ## 확인
 - Claude Code에서 `/status` → 인증 방식이 `apiKeyHelper`
 - 실시간 전환 시험: 일부러 틀린 키로 `use` → TTL 지나서 기존 세션 요청이 인증 오류 → 원래 키로 `use` → 정상

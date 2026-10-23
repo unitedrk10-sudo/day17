@@ -118,3 +118,17 @@ def test_prompt_ctrl_v_falls_back_to_clipboard(env, monkeypatch, tmp_path):
     f = tmp_path / "k.txt"
     f.write_text("\ufeff" + K1 + "\r\n", encoding="utf-8")                      # 메모장 BOM·CRLF
     assert ccsw.main(["add", "f", "--file", str(f)]) == 0 and ccsw.read_key("f") == K1
+
+
+def test_hand_written_files_in_notepad_formats(env):
+    tmp, settings = env
+    kd = os.path.join(ccsw.home(), "keys")
+    os.makedirs(kd)
+    open(os.path.join(kd, "work.key"), "wb").write(("\ufeff" + K1 + "\r\n").encode("utf-8"))     # UTF-8 BOM
+    open(os.path.join(kd, "home.key.txt"), "wb").write((K2 + "\r\n").encode("utf-16"))            # 유니코드 + .txt
+    open(os.path.join(ccsw.home(), "active.txt"), "wb").write("home\r\n".encode("utf-8"))
+    assert ccsw.names() == ["home", "work"] and ccsw.active_name() == "home"
+    r = run("get")
+    assert r.returncode == 0 and r.stdout.strip() == K2
+    open(os.path.join(kd, "bad.key"), "w", encoding="utf-8").write("sk-ant- 공백 있음")
+    assert any("bad" in m for st, m in ccsw.doctor(str(settings)) if st == "FAIL")

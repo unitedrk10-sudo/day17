@@ -107,21 +107,39 @@ def restrict(path):
         print(f"경고: 권한 제한(icacls) 실패 — {path} 접근 권한을 직접 확인하세요", file=sys.stderr)
 
 
+def read_text(path):
+    """메모장 저장본도 읽기: UTF-8(BOM 유무)·UTF-16, 앞뒤 공백·줄바꿈 제거."""
+    raw = open(path, "rb").read()
+    text = raw.decode("utf-16") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else raw.decode("utf-8-sig", errors="replace")
+    return text.strip().lstrip("\ufeff")
+
+
+def key_ok(key):
+    return bool(key) and len(key) >= 20 and all(33 <= ord(c) < 127 for c in key)
+
+
 def read_key(name):
     p = key_path(name)
     if not os.path.isfile(p):
-        return None
-    return open(p, encoding="utf-8").read().strip() or None
+        if os.path.isfile(p + ".txt"):           # 메모장이 .key.txt로 저장한 경우
+            p = p + ".txt"
+        else:
+            return None
+    return read_text(p) or None
 
 
 def active_name():
     p = active_path()
-    return open(p, encoding="utf-8").read().strip() if os.path.isfile(p) else None
+    if not os.path.isfile(p) and os.path.isfile(p + ".txt"):
+        p = p + ".txt"
+    return (read_text(p) or None) if os.path.isfile(p) else None
 
 
 def names():
     d = keys_dir()
-    return sorted(f[:-4] for f in os.listdir(d) if f.endswith(".key")) if os.path.isdir(d) else []
+    if not os.path.isdir(d):
+        return []
+    return sorted({f[:-4] if f.endswith(".key") else f[:-8] for f in os.listdir(d) if f.endswith((".key", ".key.txt"))})
 
 
 def load_settings(path):
@@ -156,6 +174,9 @@ def cmd_get(a):
     key = read_key(n) if n else None
     if not key:
         sys.stderr.write("ccsw: 활성 키 없음 — `ccsw use <이름>`\n")
+        return 1
+    if not key_ok(key):
+        sys.stderr.write(f"ccsw: '{n}' 키 파일에 공백·제어문자·비ASCII가 있거나 너무 짧음 — 키 한 줄만 다시 저장\n")
         return 1
     sys.stdout.write(key + "\n")
     return 0
@@ -202,8 +223,7 @@ def cmd_add(a):
     elif a.clipboard:
         key = read_clipboard().strip()
     elif a.file:
-        raw = open(a.file, "rb").read()
-        key = (raw.decode("utf-16") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else raw.decode("utf-8-sig")).strip()  # 메모장 UTF-16·BOM
+        key = read_text(a.file)
     else:
         print("키를 복사해 둔 상태면 Ctrl+V 한 번 + Enter (글자는 안 보이는 게 정상)")
         key = getpass.getpass(f"'{name}' 키 입력 (화면에 표시 안 됨): ").strip()
@@ -389,6 +409,9 @@ def doctor(settings, project=None):
     for p in _vscode_settings():
         if any(v in open(p, encoding="utf-8", errors="replace").read() for v in KEY_VARS):
             res.append(("FAIL", f"VS Code 설정에 키 변수 ({p}, claudeCode.environmentVariables 등) — 지우세요"))
+    for k in names():
+        if not key_ok(read_key(k)):
+            res.append(("FAIL", f"키 '{k}' 파일 내용이 키 형식이 아님 (공백·제어문자·비ASCII·20자 미만) — 키 한 줄만 다시 저장"))
     n = active_name()
     if not n or not read_key(n):
         res.append(("FAIL", "활성 키 없음 — `ccsw add` / `ccsw use`"))
