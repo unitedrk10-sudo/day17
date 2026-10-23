@@ -9,7 +9,7 @@ CLAUDE_CODE_API_KEY_HELPER_TTL_MS 주기마다 다시 받으므로, `ccsw use <�
 명령
   install [--migrate 이름] [--ttl 60000]   settings.json에 apiKeyHelper 설정 (백업 후), 스크립트를 ~/.claude/ccsw/로 복사
                                             --migrate: settings.json env의 기존 키를 그 이름으로 옮기고 env에서 삭제
-  add 이름 [--clipboard | --stdin | --from-env 변수]  키 등록 (기본: 화면에 안 보이게 입력, --clipboard: 복사해 둔 키 바로 읽기)
+  add 이름 [--clipboard | --file 경로 | --stdin | --from-env 변수]  키 등록 (기본: 화면에 안 보이게 입력, --clipboard: 복사해 둔 키 바로 읽기)
   use 이름                                  활성 키 전환 (+ settings.json 다시 쓰기로 실행 중 세션에 즉시 반영 유도)
   list | current                            등록 키 목록 / 현재 활성 키 (키는 가려서 표시)
   remove 이름                               키 삭제 (활성 키는 삭제 불가)
@@ -201,9 +201,21 @@ def cmd_add(a):
         key = (os.environ.get(a.from_env) or "").strip()
     elif a.clipboard:
         key = read_clipboard().strip()
+    elif a.file:
+        raw = open(a.file, "rb").read()
+        key = (raw.decode("utf-16") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else raw.decode("utf-8-sig")).strip()  # 메모장 UTF-16·BOM
     else:
-        print("붙여넣기: 마우스 오른쪽 클릭 (또는 Ctrl+Shift+V). 입력한 글자는 보이지 않는 게 정상 — 붙여넣고 Enter")
+        print("키를 복사해 둔 상태면 Ctrl+V 한 번 + Enter (글자는 안 보이는 게 정상)")
         key = getpass.getpass(f"'{name}' 키 입력 (화면에 표시 안 됨): ").strip()
+        if any(ord(c) < 32 for c in key):
+            # 옛 콘솔은 Ctrl+V·Ctrl+Shift+V를 붙여넣기 대신 제어문자(^V)로 넘긴다 → 클립보드에서 직접 읽는다
+            try:
+                clip = read_clipboard().strip()
+            except SystemExit:
+                clip = ""
+            if clip and all(33 <= ord(c) < 127 for c in clip) and len(clip) >= 20:
+                print(f"붙여넣기가 글자(^V)로 들어와 클립보드에서 직접 읽었습니다: {mask(clip)}")
+                key = clip
     check_key(key)
     if os.path.isfile(key_path(name)) and not a.force:
         raise SystemExit(f"'{name}' 이미 있음 — 덮어쓰려면 --force")
@@ -411,6 +423,7 @@ def main(argv=None):
     p.add_argument("--python", help="helper가 쓸 python 경로 (기본: 지금 실행한 python)"); p.add_argument("--force", action="store_true")
     p = sub.add_parser("add"); p.add_argument("name"); p.add_argument("--stdin", action="store_true")
     p.add_argument("--from-env"); p.add_argument("--clipboard", action="store_true", help="클립보드에서 바로 읽기 (붙여넣기 불필요)")
+    p.add_argument("--file", help="키 한 줄이 든 텍스트 파일에서 읽기 (등록 후 파일은 직접 삭제)")
     p.add_argument("--force", action="store_true")
     p = sub.add_parser("use"); p.add_argument("name"); p.add_argument("--no-nudge", action="store_true")
     sub.add_parser("list"); sub.add_parser("current"); sub.add_parser("get"); sub.add_parser("uninstall")

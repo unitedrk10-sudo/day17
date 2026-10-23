@@ -109,3 +109,12 @@ def test_clipboard_and_bad_paste(env, monkeypatch, capsys):
         with pytest.raises(SystemExit):
             ccsw.main(["add", "x", "--clipboard"])
     assert ccsw.read_key("x") is None
+
+
+def test_prompt_ctrl_v_falls_back_to_clipboard(env, monkeypatch, tmp_path):
+    monkeypatch.setattr(ccsw.getpass, "getpass", lambda prompt="": "\x16")        # 옛 콘솔: Ctrl+V가 ^V로
+    monkeypatch.setattr(ccsw, "read_clipboard", lambda: K2)
+    assert ccsw.main(["add", "p"]) == 0 and ccsw.read_key("p") == K2
+    f = tmp_path / "k.txt"
+    f.write_text("\ufeff" + K1 + "\r\n", encoding="utf-8")                      # 메모장 BOM·CRLF
+    assert ccsw.main(["add", "f", "--file", str(f)]) == 0 and ccsw.read_key("f") == K1
