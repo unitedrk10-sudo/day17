@@ -24,7 +24,8 @@ Windows 사용자/시스템 환경변수나 VS Code 설정(`claudeCode.environme
 
 ## 사용
 ```
-python %USERPROFILE%\.claude\ccsw\ccsw.py add personal      # 키 추가
+python %USERPROFILE%\.claude\ccsw\ccsw.py add personal --clipboard   # 키를 복사해 둔 뒤 실행 — 붙여넣기 불필요
+python %USERPROFILE%\.claude\ccsw\ccsw.py add personal      # 또는 프롬프트에 붙여넣기 (오른쪽 클릭, 글자는 안 보임)
 python %USERPROFILE%\.claude\ccsw\ccsw.py use personal      # 전환 (재시작 불필요)
 python %USERPROFILE%\.claude\ccsw\ccsw.py list              # * = 활성, 키는 sk-ant-…ab12처럼 가림
 python %USERPROFILE%\.claude\ccsw\ccsw.py doctor
@@ -34,13 +35,23 @@ Windows에서는 설치 때 `%USERPROFILE%\.claude\ccsw\ccsw.cmd`도 만들어�
 | 명령 | 하는 일 |
 |---|---|
 | `install [--migrate 이름] [--ttl ms] [--python 경로]` | helper 설정 (settings.json 백업 후), 스크립트를 `~/.claude/ccsw/`로 복사 |
-| `add 이름 [--stdin \| --from-env 변수] [--force]` | 키 등록 (`keys/이름.key`, 본인만 읽기 권한) |
+| `add 이름 [--clipboard \| --stdin \| --from-env 변수] [--force]` | 키 등록 (`keys/이름.key`, 본인만 읽기 권한). 공백·제어문자·20자 미만은 거부 |
 | `use 이름 [--no-nudge]` | 활성 키 전환 |
 | `list` / `current` | 목록 / 현재 키 (가려서) |
 | `remove 이름` | 삭제 (활성 키는 불가) |
 | `doctor [--project 폴더]` | helper를 무시하게 만드는 키 변수(셸·Windows 환경변수·settings env·VS Code 설정) 점검, helper 실행 확인 |
 | `uninstall` | settings.json에서 helper·TTL 제거 (키 파일은 남김) |
 | `get` | helper 전용 — 활성 키 원문 출력. 사람이 실행하지 말 것 |
+
+## PowerShell에서 붙여넣기가 안 될 때
+- **키 입력 프롬프트**: 입력한 글자가 **안 보이는 게 정상**이다(보안). 붙여넣은 뒤 그냥 Enter.
+  - 옛 콘솔 창(파란/검은 `Windows PowerShell` 창)은 `Ctrl+V`가 붙여넣기가 아니라 글자(`^V`)로 들어간다 →
+    **마우스 오른쪽 클릭**으로 붙여넣기. 잘못 들어가면 ccsw가 "Ctrl+V가 글자로 들어갔습니다"로 거부한다(저장 안 됨).
+  - 가장 쉬운 방법: 키를 복사해 두고 `add <이름> --clipboard` — 붙여넣기 자체가 필요 없다.
+- **명령어 붙여넣기**: 오른쪽 클릭 또는 `Ctrl+Shift+V`. 여러 줄을 한 번에 붙이면 줄마다 실행되므로 한 줄씩.
+  - 창 제목줄 오른쪽 클릭 → 속성 → 옵션 → "Ctrl 키 바로 가기 사용"과 "Ctrl+Shift+C/V를 복사/붙여넣기로 사용" 체크.
+  - **Windows Terminal**(Microsoft Store/기본 설치)을 쓰면 `Ctrl+V`가 그대로 붙여넣기다 — 가장 확실.
+  - 회사 보안 프로그램이 콘솔 붙여넣기를 막는 경우: 명령을 `.ps1` 파일로 저장해 실행하거나 `--clipboard` 사용.
 
 ## 확인
 - Claude Code에서 `/status` → 인증 방식이 `apiKeyHelper`

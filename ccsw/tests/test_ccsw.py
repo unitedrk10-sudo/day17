@@ -98,3 +98,14 @@ def test_uninstall_removes_helper_only(env):
     data = json.loads(settings.read_text(encoding="utf-8"))
     assert "apiKeyHelper" not in data and ccsw.TTL_VAR not in data.get("env", {})
     assert ccsw.read_key("a") == K1
+
+
+def test_clipboard_and_bad_paste(env, monkeypatch, capsys):
+    monkeypatch.setattr(ccsw, "read_clipboard", lambda: K1 + "\r\n")
+    assert ccsw.main(["add", "clip", "--clipboard"]) == 0 and ccsw.read_key("clip") == K1
+    assert K1 not in capsys.readouterr().out
+    for bad in ("\x16", "sk-ant-\x16abcdefghijklmnopqrstu", "short", "sk-ant-한글abcdefghijklmnopqrstu"):
+        monkeypatch.setattr(ccsw, "read_clipboard", lambda bad=bad: bad)
+        with pytest.raises(SystemExit):
+            ccsw.main(["add", "x", "--clipboard"])
+    assert ccsw.read_key("x") is None

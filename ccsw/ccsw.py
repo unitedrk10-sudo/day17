@@ -9,7 +9,7 @@ CLAUDE_CODE_API_KEY_HELPER_TTL_MS 주기마다 다시 받으므로, `ccsw use <�
 명령
   install [--migrate 이름] [--ttl 60000]   settings.json에 apiKeyHelper 설정 (백업 후), 스크립트를 ~/.claude/ccsw/로 복사
                                             --migrate: settings.json env의 기존 키를 그 이름으로 옮기고 env에서 삭제
-  add 이름 [--stdin | --from-env 변수]      키 등록 (기본: 화면에 안 보이게 입력)
+  add 이름 [--clipboard | --stdin | --from-env 변수]  키 등록 (기본: 화면에 안 보이게 입력, --clipboard: 복사해 둔 키 바로 읽기)
   use 이름                                  활성 키 전환 (+ settings.json 다시 쓰기로 실행 중 세션에 즉시 반영 유도)
   list | current                            등록 키 목록 / 현재 활성 키 (키는 가려서 표시)
   remove 이름                               키 삭제 (활성 키는 삭제 불가)
@@ -161,16 +161,50 @@ def cmd_get(a):
     return 0
 
 
+def read_clipboard():
+    """클립보드 텍스트 (Windows: PowerShell Get-Clipboard, macOS: pbpaste, Linux: wl-paste/xclip)."""
+    if os.name == "nt":
+        cmds = [["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"]]
+    elif sys.platform == "darwin":
+        cmds = [["pbpaste"]]
+    else:
+        cmds = [["wl-paste", "--no-newline"], ["xclip", "-o", "-selection", "clipboard"]]
+    for c in cmds:
+        try:
+            r = subprocess.run(c, capture_output=True, text=True, timeout=15)
+            if r.returncode == 0:
+                return r.stdout
+        except (OSError, subprocess.SubprocessError):
+            continue
+    raise SystemExit("클립보드를 읽지 못했습니다 — --stdin 또는 입력 프롬프트를 쓰세요")
+
+
+def check_key(key):
+    """키는 공백·제어문자 없는 ASCII. 콘솔이 Ctrl+V를 붙여넣기 대신 글자(^V)로 넣은 경우를 여기서 막는다."""
+    if not key:
+        raise SystemExit("키가 비었습니다")
+    bad = [c for c in key if not 33 <= ord(c) < 127]
+    if bad:
+        hint = " — Ctrl+V가 붙여넣기가 아니라 글자로 들어갔습니다. 오른쪽 클릭 붙여넣기나 --clipboard를 쓰세요" \
+            if any(ord(c) < 32 for c in bad) else ""
+        raise SystemExit(f"키에 공백·제어문자·비ASCII 문자가 {len(bad)}개 있습니다{hint}")
+    if len(key) < 20:
+        raise SystemExit(f"키가 너무 짧습니다({len(key)}자) — 일부만 붙여넣어졌는지 확인")
+    return key
+
+
 def cmd_add(a):
     name = check_name(a.name)
     if a.stdin:
         key = sys.stdin.readline().strip()
     elif a.from_env:
         key = (os.environ.get(a.from_env) or "").strip()
+    elif a.clipboard:
+        key = read_clipboard().strip()
     else:
+        print("붙여넣기: 마우스 오른쪽 클릭 (또는 Ctrl+Shift+V). 입력한 글자는 보이지 않는 게 정상 — 붙여넣고 Enter")
         key = getpass.getpass(f"'{name}' 키 입력 (화면에 표시 안 됨): ").strip()
-    if not key or any(c.isspace() for c in key):
-        raise SystemExit("키가 비었거나 공백이 들어 있습니다")
+    check_key(key)
     if os.path.isfile(key_path(name)) and not a.force:
         raise SystemExit(f"'{name}' 이미 있음 — 덮어쓰려면 --force")
     atomic_write(key_path(name), key + "\n", private=True)
@@ -376,7 +410,8 @@ def main(argv=None):
     p = sub.add_parser("install"); p.add_argument("--migrate"); p.add_argument("--ttl", type=int, default=60000)
     p.add_argument("--python", help="helper가 쓸 python 경로 (기본: 지금 실행한 python)"); p.add_argument("--force", action="store_true")
     p = sub.add_parser("add"); p.add_argument("name"); p.add_argument("--stdin", action="store_true")
-    p.add_argument("--from-env"); p.add_argument("--force", action="store_true")
+    p.add_argument("--from-env"); p.add_argument("--clipboard", action="store_true", help="클립보드에서 바로 읽기 (붙여넣기 불필요)")
+    p.add_argument("--force", action="store_true")
     p = sub.add_parser("use"); p.add_argument("name"); p.add_argument("--no-nudge", action="store_true")
     sub.add_parser("list"); sub.add_parser("current"); sub.add_parser("get"); sub.add_parser("uninstall")
     p = sub.add_parser("remove"); p.add_argument("name")

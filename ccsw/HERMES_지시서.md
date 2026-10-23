@@ -53,9 +53,12 @@ python ccsw.py doctor
   python ccsw.py add <이름> --from-env ANTHROPIC_API_KEY      # 게이트웨이 토큰이면 ANTHROPIC_AUTH_TOKEN
   python ccsw.py install
   ```
-- **(다) 어디에도 없음 / 새 키** → `python ccsw.py install` 후 사용자에게 `python ccsw.py add <이름>` 직접 입력 요청.
+- **(다) 어디에도 없음 / 새 키** → `python ccsw.py install` 후 사용자에게 키를 **복사해 두게** 하고
+  `python ccsw.py add <이름> --clipboard` 실행 (붙여넣기 불필요, 키 값은 출력되지 않음). 실행 후 사용자에게 클립보드를 다른 내용으로 덮어쓰도록 안내.
+  콘솔 프롬프트 입력을 원하면 `python ccsw.py add <이름>` — 글자가 안 보이는 게 정상, 붙여넣기는 **마우스 오른쪽 클릭**.
 
-추가 키가 있으면 사용자가 `python $env:USERPROFILE\.claude\ccsw\ccsw.py add <이름>`으로 직접 등록.
+추가 키가 있으면 사용자가 복사해 둔 뒤 `python $env:USERPROFILE\.claude\ccsw\ccsw.py add <이름> --clipboard`로 등록.
+"Ctrl+V가 글자로 들어갔습니다" 오류가 나면 저장되지 않은 것 — `--clipboard`로 다시.
 설치하면 `settings.json.bak-<시각>` 백업이 생긴다 — 경로를 기록해 둔다.
 
 ## 5. helper를 가리는 키 변수 제거 (사용자 승인 후)
